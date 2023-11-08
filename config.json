@@ -1,0 +1,139 @@
+{
+    "dataFiles": "DataFiles",
+    "infoFiles":"InfoFiles",
+    "specStart" : 0,
+    "specEnd"   : 2e13,
+    "ch0":
+    {
+        "0":
+        {
+            "start" : 1800,
+            "end" : 2100,
+            "startCo1" : 3100 ,
+            "endCo1" : 3550,
+            "startCo2" : 3550,
+            "endCo2" : 4000
+        },
+        "1":
+        {
+            "start" : 1800,
+            "end" : 2200,
+            "startCo1" : 3300 ,
+            "endCo1" : 3700,
+            "startCo2" : 3700,
+            "endCo2" : 4200 
+        },
+        "2":
+        {
+            "start" : 1700,
+            "end" : 2100,
+            "startCo1" : 3200 ,
+            "endCo1" : 3700,
+            "startCo2" : 3700,
+            "endCo2" : 4100 
+        },
+        "3":
+        {
+            "start" : 1700,
+            "end" : 2100,
+            "startCo1" : 3200 ,
+            "endCo1" : 3600,
+            "startCo2" : 3600,
+            "endCo2" : 4100
+        },
+        "4":
+        {
+            "start" : 1500,
+            "end" : 1800,
+            "startCo1" : 2800 ,
+            "endCo1" : 3100,
+            "startCo2" : 3100,
+            "endCo2" : 3600
+        },
+        "5":
+        {
+            "start" : 1400,
+            "end" : 1700,
+            "startCo1" : 2600 ,
+            "endCo1" : 2950,
+            "startCo2" : 2950,
+            "endCo2" : 3300
+        },
+        "6":
+        {
+            "start" : 1300,
+            "end" : 1600,
+            "startCo1" : 2400 ,
+            "endCo1" : 2750,
+            "startCo2" : 2750,
+            "endCo2" : 3150
+        }
+        
+    },
+    "ch32":
+    {
+        "0":
+        {
+            "start" : 1950,
+            "end" : 2300,
+            "startCo1" : 3600 ,
+            "endCo1" : 4050,
+            "startCo2" : 4050,
+            "endCo2" : 4550
+        },
+        "1":
+        {
+            "start" : 2050,
+            "end" : 2400,
+            "startCo1" : 3700 ,
+            "endCo1" : 4200,
+            "startCo2" : 4200,
+            "endCo2" : 4800
+        },
+        "2":
+        {
+            "start" : 1950,
+            "end" : 2300,
+            "startCo1" : 3600 ,
+            "endCo1" : 4100,
+            "startCo2" : 4100,
+            "endCo2" : 4600
+        },
+        "3":
+        {
+            "start" : 1950,
+            "end" : 2300,
+            "startCo1" : 3550 ,
+            "endCo1" : 4100,
+            "startCo2" : 4100,
+            "endCo2" : 4600
+        },
+        "4":
+        {
+            "start" : 1650,
+            "end" : 2000,
+            "startCo1" : 3100 ,
+            "endCo1" : 3500,
+            "startCo2" : 3500,
+            "endCo2" : 3950
+        },
+        "5":
+        {
+            "start" : 1550,
+            "end" : 1850,
+            "startCo1" : 2850 ,
+            "endCo1" : 3250,
+            "startCo2" : 3250,
+            "endCo2" : 3700
+        },
+        "6":
+        {
+            "start" : 1450,
+            "end" : 1750,
+            "startCo1" : 2700 ,
+            "endCo1" : 3050,
+            "startCo2" : 3050,
+            "endCo2" : 3500
+        }
+    }
+}

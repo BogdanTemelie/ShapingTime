@@ -1,0 +1,5 @@
+Aici am caracterizat evolutia rezolutiei energetice a peakului de Cs in fuctie de parametrul Shaping time 
+
+AM folosit un detector de CeBr3 susra de Co, sursa de Cs, cu date de lafiecare din cele doua boarduri, si parametrul merge din 12.5 in 12.5 ns de la 12.5ns
+
+Restul parametrilor sunt constanti si se gassesc in fisierele _info din Infofiles 
