@@ -46,8 +46,8 @@
             "start" : 1500,
             "end" : 1800,
             "startCo1" : 2800 ,
-            "endCo1" : 3100,
-            "startCo2" : 3100,
+            "endCo1" : 3160,
+            "startCo2" : 3160,
             "endCo2" : 3600
         },
         "5":
@@ -55,8 +55,8 @@
             "start" : 1400,
             "end" : 1700,
             "startCo1" : 2600 ,
-            "endCo1" : 2950,
-            "startCo2" : 2950,
+            "endCo1" : 2960,
+            "startCo2" : 2960,
             "endCo2" : 3300
         },
         "6":
@@ -64,8 +64,8 @@
             "start" : 1300,
             "end" : 1600,
             "startCo1" : 2400 ,
-            "endCo1" : 2750,
-            "startCo2" : 2750,
+            "endCo1" : 2770,
+            "startCo2" : 2770,
             "endCo2" : 3150
         }
         
@@ -114,7 +114,7 @@
             "end" : 2000,
             "startCo1" : 3100 ,
             "endCo1" : 3500,
-            "startCo2" : 3500,
+            "startCo2" : 3550,
             "endCo2" : 3950
         },
         "5":
@@ -122,8 +122,8 @@
             "start" : 1550,
             "end" : 1850,
             "startCo1" : 2850 ,
-            "endCo1" : 3250,
-            "startCo2" : 3250,
+            "endCo1" : 3270,
+            "startCo2" : 3270,
             "endCo2" : 3700
         },
         "6":
@@ -131,9 +131,15 @@
             "start" : 1450,
             "end" : 1750,
             "startCo1" : 2700 ,
-            "endCo1" : 3050,
-            "startCo2" : 3050,
+            "endCo1" : 3060,
+            "startCo2" : 3060,
             "endCo2" : 3500
         }
-    }
+    },
+    "startCsCal" : 600,
+    "endCsCal": 720,
+    "startCo1Cal" : 1100,
+    "endCo1Cal" : 1250 ,
+    "startCo2Cal" : 1250,
+    "endCo2Cal" : 1410
 }
