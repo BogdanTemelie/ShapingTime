@@ -1,3 +1,5 @@
+from importlib.metadata import files
+from idna import check_initial_combiner
 from ROOT import TF1, TH1F, gPad, TCanvas, TFile, TGraph, kRed, kBlack, TMultiGraph, TLegend, kBlue, kGreen, kMagenta, kOrange
 import numpy as np
 import array as arr
@@ -8,19 +10,21 @@ import json
 import os 
 import natsort
 import random as rand
-import multiprocessing as mlt
+from multiprocessing import Pool
 import time
 
-configfile = 'config.json'
-with open(configfile) as datafile:
-    config = json.load(datafile)
+def split(string): #Scoate toate literele in ordine dintr-un string
+        return [char for char in string]
+
+def mergeLists(l1, l2): #Uneste doualiste, primul element cu primul element, al doile cu al doilea etc.
+    return list(map(lambda x, y:(x,y), l1, l2)) 
+
+
 
 def getInfo(files): #Scoate informatiile de care ai nevoie din fisierel e tip info pe care le scoate Janus
-    infoFiles = [os.path.relpath(x) for x in os.scandir(files)]
-    infoFiles = natsort.natsorted(infoFiles)
+    infofiles = files
     holdDelay = np.array([])
-    for i in range(len(infoFiles)):
-        with codecs.open(infoFiles[i], 'r', 'utf-8', errors='ignore') as file:
+    with codecs.open(infofiles, 'r', 'utf-8', errors='ignore') as file:
             for i, line in enumerate(file):
                 line = line.strip()
                 info = line.split()
@@ -98,13 +102,11 @@ def plot(datafiles, infofiles): #Ploeaza histogramele generate din fisierele de 
     holdDelay = getInfo(infofiles)
     histsCh0 = []
     histsCh32 =[]
-    dataFiles = [os.path.relpath(x) for x in os.scandir(datafiles)]
-    dataFiles = natsort.natsorted(dataFiles)
     Ch0 = TCanvas('c1', "Channel 0")
     Ch32 = TCanvas('c2', 'Channel 32')
-    for  i in range(len(dataFiles)):
+    for  i in range(len(datafiles)):
         print(i)
-        with codecs.open(dataFiles[i], 'r', 'utf-8', errors='ignore') as file:
+        with codecs.open(datafiles[i], 'r', 'utf-8', errors='ignore') as file:
             # if i == 18:
             #     continue
             histCh0 = TH1F(f"h0_{i}", f"Histogram Channel 0_{i}_ShapingTime_" + holdDelay[i] + "ns", 2**13, 0, 2**13-1)
@@ -141,17 +143,14 @@ def plot(datafiles, infofiles): #Ploeaza histogramele generate din fisierele de 
         gPad.WaitPrimitive('ggg')
 
 
-def loadHists(datafiles, infofiles):
+def loadHists(files): #Incarca histogamele din fisierele de date
+    datafiles = files[0][0]
+    infofiles = files[0][1]
+    hists = []
     info = getInfo(infofiles)
-    histsCh0 = []
-    histsCh32 =[]
-    dataFiles = [os.path.relpath(x) for x in os.scandir(datafiles)]
-    dataFiles = natsort.natsorted(dataFiles)
-    for  i in range(len(dataFiles)):
-        print(i)
-        with codecs.open(dataFiles[i], 'r', 'utf-8', errors='ignore') as file:
-            histCh0 = TH1F(f"h0_{i}", f"Histogram Channel 0_{i}_ShapingTime_" + info[i] + "ns", 2**13, 0, 2**13-1)
-            histCh32 = TH1F(f"h32_{i}", f"Histogram Channel 32_{i}_ShapingTime" + info[i] + "ns", 2**13, 0, 2**13-1)
+    with codecs.open(datafiles, 'r', 'utf-8', errors='ignore') as file:
+            histCh0 = TH1F("h0_" + info[0], "Histogram Channel 0__ShapingTime_" + info[0] + "ns", 2**13, 0, 2**13-1)
+            histCh32 = TH1F("h32_" + info[0],"Histogram Channel 32__ShapingTime" + info[0] + "ns", 2**13, 0, 2**13-1)
             for i, line in enumerate(file):
                 if (i>8):
                     line = line.strip()
@@ -160,18 +159,18 @@ def loadHists(datafiles, infofiles):
                         histCh0.Fill(int(event[-2]))
                     if event[-3] == '32':
                         histCh32.Fill(int(event[-2]))
-            histsCh0.append(histCh0)
-            histsCh32.append(histCh32)
-    return histsCh0, histsCh32
+    hists.append(histCh0)
+    hists.append(histCh32)
+    return hists
 
 
-def peakPositions(par):
+def peakPositions(par): #
     mean = []
     for i in range(len(par)):
         mean.append(par[i])
     return mean 
 
-def calibration(hist,par):
+def calibration(hist,par): #returneaza parametri de calibrare pentru Histograma
     fitPar = np.array([])
     energies = np.array([661.657, 1173.237, 1332.501])
     graph = TGraph()
@@ -186,8 +185,14 @@ def calibration(hist,par):
     fitPar = np.append(fitPar, (float(cal.GetParameter(0)), float(cal.GetParameter(1))))
     return fitPar
 
-def uncalAnalysis(datafiles, infofiles): #Scoate parametrii doriti din fisierele de tip list de la Janus
+def uncalAnalysis(files): #Scoate parametrii de fit din histogramele necalibrate 
+
+    datafiles = files[0][0]
+    infofiles = files[0][1]
+
+    fileNumber = split(infofiles)
     shapingTime = getInfo(infofiles)
+
     parCh0 = np.array([])
     parmsCh0Co1 = np.array([])
     parmsCh0Co2 = np.array([])
@@ -195,13 +200,7 @@ def uncalAnalysis(datafiles, infofiles): #Scoate parametrii doriti din fisierele
     parmsCh32Co1 = np.array([])
     parmsCh32Co2 = np.array([])
 
-    histsCh0 = []
-    histsCh32 =[]
-    dataFiles = [os.path.relpath(x) for x in os.scandir(datafiles)]
-    dataFiles = natsort.natsorted(dataFiles)
-    for  i in range(len(dataFiles)):
-        print(i)
-        with codecs.open(dataFiles[i], 'r', 'utf-8', errors='ignore') as file:
+    with codecs.open(datafiles, 'r', 'utf-8', errors='ignore') as file:
             pCh0 = np.array([])
             pCh0Co1 = np.array([])
             pCh0Co2 = np.array([])
@@ -209,8 +208,8 @@ def uncalAnalysis(datafiles, infofiles): #Scoate parametrii doriti din fisierele
             pCh32Co1 = np.array([])
             pCh32Co2 = np.array([])
 
-            histCh0 = TH1F(f"h0_{i}", f"Histogram Channel 0_{i}_ShapingTime"  + shapingTime[i] + "ns", 2**13, 0, 2**13-1)
-            histCh32 = TH1F(f"h32_{i}", f"Histogram Channel 32_{i}_ShapingTime" + shapingTime[i] + "ns", 2**13, 0, 2**13-1)
+            histCh0 = TH1F("h0_" + shapingTime[0], "Histogram Channel 0__ShapingTime"  + shapingTime[0] + "ns", 2**13, 0, 2**13-1)
+            histCh32 = TH1F("h32_" + shapingTime[0], "Histogram Channel 32__ShapingTime" + shapingTime[0] + "ns", 2**13, 0, 2**13-1)
             for j, line in enumerate(file):
                 if (j>8):
                     line = line.strip()
@@ -224,28 +223,22 @@ def uncalAnalysis(datafiles, infofiles): #Scoate parametrii doriti din fisierele
             histCh32Co1 = histCh32.Clone()
             histCh32Co2 = histCh32.Clone()
 
-            par0 = getPeak(histCh0, histCh0.FindBin(config["ch0"][str(i)]['start']), histCh0.FindBin(config["ch0"][str(i)]['end']))
-            parCh0Co1 = getPeak(histCh0Co1, histCh0.FindBin(config["ch0"][str(i)]['startCo1']), histCh0.FindBin(config["ch0"][str(i)]['endCo1']))
-            parCh0Co2 = getPeak(histCh0Co2, histCh0.FindBin(config["ch0"][str(i)]['startCo2']), histCh0.FindBin(config["ch0"][str(i)]['endCo2']))
+            par0 = getPeak(histCh0, histCh0.FindBin(config["ch0"][str(fileNumber[13])]['start']), histCh0.FindBin(config["ch0"][str(fileNumber[13])]['end']))
+            parCh0Co1 = getPeak(histCh0Co1, histCh0.FindBin(config["ch0"][str(fileNumber[13])]['startCo1']), histCh0.FindBin(config["ch0"][str(fileNumber[13])]['endCo1']))
+            parCh0Co2 = getPeak(histCh0Co2, histCh0.FindBin(config["ch0"][str(fileNumber[13])]['startCo2']), histCh0.FindBin(config["ch0"][str(fileNumber[13])]['endCo2']))
 
-            par32 = getPeak(histCh32, histCh32.FindBin(config["ch32"][str(i)]['start']), histCh32.FindBin(config["ch32"][str(i)]['end']))
-            parCh32Co1 = getPeak(histCh32Co1, histCh0.FindBin(config["ch32"][str(i)]['startCo1']), histCh0.FindBin(config["ch32"][str(i)]['endCo1']))
-            parCh32Co2 = getPeak(histCh32Co2, histCh0.FindBin(config["ch32"][str(i)]['startCo2']), histCh0.FindBin(config["ch32"][str(i)]['endCo2']))
+            par32 = getPeak(histCh32, histCh32.FindBin(config["ch32"][str(fileNumber[13])]['start']), histCh32.FindBin(config["ch32"][str(fileNumber[13])]['end']))
+            parCh32Co1 = getPeak(histCh32Co1, histCh0.FindBin(config["ch32"][str(fileNumber[13])]['startCo1']), histCh0.FindBin(config["ch32"][str(fileNumber[13])]['endCo1']))
+            parCh32Co2 = getPeak(histCh32Co2, histCh0.FindBin(config["ch32"][str(fileNumber[13])]['startCo2']), histCh0.FindBin(config["ch32"][str(fileNumber[13])]['endCo2']))
  
-            # print(par0)
-            # print(par32)
-            # print(parCh0Co1)
-            # print(parCh0Co2)
-            # print(parCh32Co1)
-            # print(parCh32Co2)
 
-            fitFunc0 = fit(histCh0, par0, config["ch0"][str(i)]['start'], config["ch0"][str(i)]['end'])
-            fitfuncCh0Co1 = fit(histCh0Co1, parCh0Co1, config["ch0"][str(i)]['startCo1'], config["ch0"][str(i)]['endCo1'])
-            fitfuncCh0Co2 = fit(histCh0Co2, parCh0Co2, config["ch0"][str(i)]['startCo2'], config["ch0"][str(i)]['endCo2'])
+            fitFunc0 = fit(histCh0, par0, config["ch0"][str(fileNumber[13])]['start'], config["ch0"][str(fileNumber[13])]['end'])
+            fitfuncCh0Co1 = fit(histCh0Co1, parCh0Co1, config["ch0"][str(fileNumber[13])]['startCo1'], config["ch0"][str(fileNumber[13])]['endCo1'])
+            fitfuncCh0Co2 = fit(histCh0Co2, parCh0Co2, config["ch0"][str(fileNumber[13])]['startCo2'], config["ch0"][str(fileNumber[13])]['endCo2'])
 
-            fitFunc32 = fit(histCh32, par32, config["ch32"][str(i)]['start'], config["ch32"][str(i)]['end'])
-            fitfuncCh32Co1 = fit(histCh32Co1, parCh32Co1, config["ch32"][str(i)]['startCo1'], config["ch32"][str(i)]['endCo1'])
-            fitfuncCh32Co2 = fit(histCh32Co2, parCh32Co2, config["ch32"][str(i)]['startCo2'], config["ch32"][str(i)]['endCo2'])
+            fitFunc32 = fit(histCh32, par32, config["ch32"][str(fileNumber[13])]['start'], config["ch32"][str(fileNumber[13])]['end'])
+            fitfuncCh32Co1 = fit(histCh32Co1, parCh32Co1, config["ch32"][str(fileNumber[13])]['startCo1'], config["ch32"][str(fileNumber[13])]['endCo1'])
+            fitfuncCh32Co2 = fit(histCh32Co2, parCh32Co2, config["ch32"][str(fileNumber[13])]['startCo2'], config["ch32"][str(fileNumber[13])]['endCo2'])
 
             # Ch0 = TCanvas('c1', "Channel 0")
             # Ch32 = TCanvas('c2', 'Channel 32')
@@ -311,9 +304,6 @@ def uncalAnalysis(datafiles, infofiles): #Scoate parametrii doriti din fisierele
             parCh32 = np.append(parCh32, pCh32)
             parmsCh32Co1 = np.append(parmsCh32Co1, pCh32Co1)
             parmsCh32Co2 = np.append(parmsCh32Co2, pCh32Co2)
-
-            histsCh0.append(histCh0)
-            histsCh32.append(histCh32)
         
     print(parCh32)
     print(parCh0)
@@ -324,152 +314,148 @@ def uncalAnalysis(datafiles, infofiles): #Scoate parametrii doriti din fisierele
 
     return parCh0, parmsCh0Co1, parmsCh0Co2, parCh32, parmsCh32Co1, parmsCh32Co2 
 
-def histCalibration(datafiles, infofiles):
-    hists = loadHists(datafiles, infofiles)
+def histCalibration(files): #Calibreaza histogramele si returneaza parametrii de calibrare doriti
+   
+
+    datafiles = files[0][0]
+    infofiles = files[0][1]
+    
+    print(datafiles)
+    print(infofiles)
+
+    hists = loadHists(files)
     histsCh0 = hists[0]
     histsCh32 = hists[1]
-    histosCh0Cal = []
-    histosCh32Cal = []
 
-    parameters = uncalAnalysis(datafiles, infofiles)
+    parameters = uncalAnalysis(files)
     info = getInfo(infofiles)
+    
     file = TFile("calibratedHists.root", "RECREATE")
 
-    parmsCh0Cs = np.array([])
-    parmsCh0Co1 = np.array([])
-    parmsCh0Co2 = np.array([])
-    parmsCh32Cs = np.array([])
-    parmsCh32Co1 = np.array([])
-    parmsCh32Co2 = np.array([])
+    finalParameters = np.array([])
 
-    Ch0 = TCanvas('c1', "Channel 0")
-    Ch32 = TCanvas('c2', 'Channel 32')
-    for i in range(len(histsCh0)):
+    pCh0Cs = np.array([])
+    pCh0Co1 = np.array([])
+    pCh0Co2 = np.array([])
+    pCh32Cs = np.array([])
+    pCh32Co1 = np.array([])
+    pCh32Co2 = np.array([])
 
-        pCh0Cs = np.array([])
-        pCh0Co1 = np.array([])
-        pCh0Co2 = np.array([])
-        pCh32Cs = np.array([])
-        pCh32Co1 = np.array([])
-        pCh32Co2 = np.array([])
+    histCh0Cal = TH1F("h0_" + info[0], "Histogram Channel 0__ShapingTime_" + info[0] + "ns_Calibrated", 2**13, 0, 2**13-1)
+    histCh32Cal = TH1F("h32_" +info[0], "Histogram Channel 32__ShapingTime" + info[0] + "ns_Calibrated", 2**13, 0, 2**13-1)
 
-        histCh0Cal = TH1F(f"h0_{i}", f"Histogram Channel 0_{i}_ShapingTime_" + info[i] + "ns_Calibrated", 2**13, 0, 2**13-1)
-        histCh32Cal = TH1F(f"h32_{i}", f"Histogram Channel 32_{i}_ShapingTime" + info[i] + "ns_Calibrated", 2**13, 0, 2**13-1)
-        ch0Data = [parameters[0][i], parameters[1][i], parameters[2][i]]
-        ch32Data =[parameters[3][i], parameters[4][i], parameters[5][i]]        
-        parCh0 = calibration(histsCh0[i], ch0Data)
-        parCh32 = calibration(histsCh32[i], ch32Data)
-        for j in range(0, histsCh0[i].GetNbinsX()):
-            for k in range(int(histsCh0[i].GetBinContent(j))):
-                    histCh0Cal.Fill((j + rand.uniform(-0.5, 0.5))*parCh0[1] + parCh0[0])
-        # histCh0Cal.Draw('hist')
-        # gPad.WaitPrimitive('ggg')
-        histCh0Cal.Write()
-        histosCh0Cal.append(histCh0Cal)
-        for j in range(0, histsCh32[i].GetNbinsX()):
-            for k in range(int(histsCh32[i].GetBinContent(j))):
-                    histCh32Cal.Fill((j + rand.uniform(-0.5, 0.5))*parCh32[1] + parCh32[0])
-        # histCh32Cal.Draw('hist')
-        # gPad.WaitPrimitive('ggg')
-        histCh32Cal.Write()
-        histosCh32Cal.append(histCh32Cal)
+    ch0Data = [parameters[0], parameters[1], parameters[2]]
+    ch32Data =[parameters[3], parameters[4], parameters[5]]
 
-        parCh0Cs = getPeak(histCh0Cal, histCh0Cal.FindBin(config['startCsCal']), histCh0Cal.FindBin(config['endCsCal']))
-        parCh0Co1 = getPeak(histCh0Cal, histCh0Cal.FindBin(config['startCo1Cal']), histCh0Cal.FindBin(config['endCo1Cal']))
-        parCh0Co2 = getPeak(histCh0Cal, histCh0Cal.FindBin(config['startCo2Cal']), histCh0Cal.FindBin(config['endCo2Cal']))
+    parCh0 = calibration(histsCh0, ch0Data)
+    parCh32 = calibration(histsCh32, ch32Data)
 
-        parCh32Cs = getPeak(histCh32Cal, histCh32Cal.FindBin(config['startCsCal']), histCh32Cal.FindBin(config['endCsCal']))
-        parCh32Co1 = getPeak(histCh32Cal, histCh32Cal.FindBin(config['startCo1Cal']), histCh32Cal.FindBin(config['endCo1Cal']))
-        parCh32Co2 = getPeak(histCh32Cal, histCh32Cal.FindBin(config['startCo2Cal']), histCh32Cal.FindBin(config['endCo2Cal']))
-
-        print(parCh0Cs)
-        print(parCh32Cs)
-        print(parCh0Co1)
-        print(parCh0Co2)
-        print(parCh32Co1)
-        print(parCh32Co2)
-
-        histCh0Cal.GetXaxis().SetRange(0,0)
-        fitFunc0 = fit(histCh0Cal, parCh0Cs, config['startCsCal'], config['endCsCal'])
-        fitfuncCh0Co1 = fit(histCh0Cal, parCh0Co1, config['startCo1Cal'], config['endCo1Cal'])
-        fitfuncCh0Co2 = fit(histCh0Cal, parCh0Co2, config['startCo2Cal'], config['endCo2Cal'])
-
-        histCh32Cal.GetXaxis().SetRange(0,0)
-        fitFunc32 = fit(histCh32Cal, parCh32Cs, config['startCsCal'], config['endCsCal'])
-        fitfuncCh32Co1 = fit(histCh32Cal, parCh32Co1, config['startCo1Cal'], config['endCo1Cal'])
-        fitfuncCh32Co2 = fit(histCh32Cal, parCh32Co2, config['startCo2Cal'], config['endCo2Cal'])      
-
-
-
-        Ch0.cd()
-        histCh0Cal.Draw('hist')
-        histCh0Cal.Fit(fitFunc0, "R+")
-        # gPad.WaitPrimitive("ggg")
-        fitFunc0.Update()
-        fitFunc0.Draw("same")
-        histCh0Cal.Fit(fitfuncCh0Co1, "R+")
-        # gPad.WaitPrimitive("ggg")
-        fitfuncCh0Co1.Update()
-        fitfuncCh0Co1.Draw("same")
-        histCh0Cal.Fit(fitfuncCh0Co2, "R+")
-        # gPad.WaitPrimitive("ggg")
-
-        fitfuncCh0Co2.Update()
-        fitfuncCh0Co2.Draw("same")
-        # gPad.WaitPrimitive("ggg")
-
-        Ch32.cd()
-        histCh32Cal.Draw('hist')
-        histCh32Cal.Fit(fitFunc32, "R+")
-        # gPad.WaitPrimitive("ggg")
-        fitFunc32.Update()
-        fitFunc32.Draw('same')
-        histCh32Cal.Fit(fitfuncCh32Co1,"R+")
-        # gPad.WaitPrimitive("ggg")
-        fitfuncCh32Co1.Update()
-        fitfuncCh32Co1.Draw("same")
-        histCh32Cal.Fit(fitfuncCh0Co2,"R=")
-        # gPad.WaitPrimitive("ggg")
-        fitfuncCh0Co2.Update()
-        fitfuncCh32Co2.Draw("same")
-        gPad.WaitPrimitive("ggg")
-             
-        rez0 = fitFunc0.GetParameter(2)
-        rezCh0Co1 =  fitfuncCh0Co1.GetParameter(2)
-        rezCh0Co2 =   fitfuncCh0Co2.GetParameter(2)
-        rez32 = fitFunc32.GetParameter(2)
-        rezCh32Co1 =  fitfuncCh32Co1.GetParameter(2)
-        rezCh32Co2 =  fitfuncCh32Co2.GetParameter(2)
-        print(rez0, rez32)
-
-        pCh0Cs = np.append(pCh0Cs,(rez0))
-        pCh0Co1 = np.append(pCh0Co1, (rezCh0Co1))
-        pCh0Co2 = np.append(pCh0Co2, (rezCh0Co2))
-
-        pCh32Cs = np.append(pCh32Cs, (rez32))
-        pCh32Co1 = np.append(pCh32Co1, (rezCh32Co1))
-        pCh32Co2 = np.append(pCh32Co2, (rezCh32Co2))
-
-        parmsCh0Cs = np.append(parmsCh0Cs, pCh0Cs)
-        parmsCh0Co1 = np.append(parmsCh0Co1, pCh0Co1)
-        parmsCh0Co2 = np.append(parmsCh0Co2, pCh0Co2)
-
-        parmsCh32Cs = np.append(parmsCh32Cs, pCh32Cs)
-        parmsCh32Co1 = np.append(parmsCh32Co1, pCh32Co1)
-        parmsCh32Co2 = np.append(parmsCh32Co2, pCh32Co2)
-
-    print(parmsCh32Cs)
-    print(parmsCh0Cs)
-    print(parmsCh0Co1)
-    print(parmsCh0Co2)
-    print(parmsCh32Co1)
-    print(parmsCh32Co2)
-
-    return parmsCh0Cs, parmsCh0Co1, parmsCh0Co2, parmsCh32Cs, parmsCh32Co1, parmsCh32Co2 
-
-
-def plotGraphs(parms1, parms2, parms3, parms4, parms5, parms6, parms7): #Ploteaza mai multe grafice 
+    for j in range(0, histsCh0.GetNbinsX()):
+         for k in range(int(histsCh0.GetBinContent(j))):
+                histCh0Cal.Fill((j + rand.uniform(-0.5, 0.5))*parCh0[1] + parCh0[0])
+    # histCh0Cal.Draw('hist')
+    # gPad.WaitPrimitive('ggg')
+    histCh0Cal.Write()
   
+    for j in range(0, histsCh32.GetNbinsX()):
+        for k in range(int(histsCh32.GetBinContent(j))):
+                histCh32Cal.Fill((j + rand.uniform(-0.5, 0.5))*parCh32[1] + parCh32[0])
+    # histCh32Cal.Draw('hist')
+    # gPad.WaitPrimitive('ggg')
+
+    histCh32Cal.Write()
+
+    parCh0Cs = getPeak(histCh0Cal, histCh0Cal.FindBin(config['startCsCal']), histCh0Cal.FindBin(config['endCsCal']))
+    parCh0Co1 = getPeak(histCh0Cal, histCh0Cal.FindBin(config['startCo1Cal']), histCh0Cal.FindBin(config['endCo1Cal']))
+    parCh0Co2 = getPeak(histCh0Cal, histCh0Cal.FindBin(config['startCo2Cal']), histCh0Cal.FindBin(config['endCo2Cal']))
+
+    parCh32Cs = getPeak(histCh32Cal, histCh32Cal.FindBin(config['startCsCal']), histCh32Cal.FindBin(config['endCsCal']))
+    parCh32Co1 = getPeak(histCh32Cal, histCh32Cal.FindBin(config['startCo1Cal']), histCh32Cal.FindBin(config['endCo1Cal']))
+    parCh32Co2 = getPeak(histCh32Cal, histCh32Cal.FindBin(config['startCo2Cal']), histCh32Cal.FindBin(config['endCo2Cal']))
+
+    histCh0Cal.GetXaxis().SetRange(0,0)
+    fitFunc0 = fit(histCh0Cal, parCh0Cs, config['startCsCal'], config['endCsCal'])
+    fitfuncCh0Co1 = fit(histCh0Cal, parCh0Co1, config['startCo1Cal'], config['endCo1Cal'])
+    fitfuncCh0Co2 = fit(histCh0Cal, parCh0Co2, config['startCo2Cal'], config['endCo2Cal'])
+
+    histCh32Cal.GetXaxis().SetRange(0,0)
+    fitFunc32 = fit(histCh32Cal, parCh32Cs, config['startCsCal'], config['endCsCal'])
+    fitfuncCh32Co1 = fit(histCh32Cal, parCh32Co1, config['startCo1Cal'], config['endCo1Cal'])
+    fitfuncCh32Co2 = fit(histCh32Cal, parCh32Co2, config['startCo2Cal'], config['endCo2Cal'])      
+
+    # Ch0 = TCanvas('c1', "Channel 0")
+    # Ch32 = TCanvas('c2', 'Channel 32')
+
+    # Ch0.cd()
+    # histCh0Cal.Draw('hist')
+    # histCh0Cal.Fit(fitFunc0, "R+")
+    # # gPad.WaitPrimitive("ggg")
+    # fitFunc0.Update()
+    # fitFunc0.Draw("same")
+    # histCh0Cal.Fit(fitfuncCh0Co1, "R+")
+    # # gPad.WaitPrimitive("ggg")
+    # fitfuncCh0Co1.Update()
+    # fitfuncCh0Co1.Draw("same")
+    # histCh0Cal.Fit(fitfuncCh0Co2, "R+")
+    # # gPad.WaitPrimitive("ggg")
+
+    # fitfuncCh0Co2.Update()
+    # fitfuncCh0Co2.Draw("same")
+    # # gPad.WaitPrimitive("ggg")
+
+    # Ch32.cd()
+    # histCh32Cal.Draw('hist')
+    # histCh32Cal.Fit(fitFunc32, "R+")
+    # # gPad.WaitPrimitive("ggg")
+    # fitFunc32.Update()
+    # fitFunc32.Draw('same')
+    # histCh32Cal.Fit(fitfuncCh32Co1,"R+")
+    # # gPad.WaitPrimitive("ggg")
+    # fitfuncCh32Co1.Update()
+    # fitfuncCh32Co1.Draw("same")
+    # histCh32Cal.Fit(fitfuncCh0Co2,"R=")
+    # # gPad.WaitPrimitive("ggg")
+    # fitfuncCh0Co2.Update()
+    # fitfuncCh32Co2.Draw("same")
+    # # gPad.WaitPrimitive("ggg")
+             
+    rez0 = fitFunc0.GetParameter(2)
+    rezCh0Co1 =  fitfuncCh0Co1.GetParameter(2)
+    rezCh0Co2 =   fitfuncCh0Co2.GetParameter(2)
+    rez32 = fitFunc32.GetParameter(2)
+    rezCh32Co1 =  fitfuncCh32Co1.GetParameter(2)
+    rezCh32Co2 =  fitfuncCh32Co2.GetParameter(2)
+    print(rez0, rez32)
+
+    pCh0Cs = np.append(pCh0Cs,(rez0))
+    pCh0Co1 = np.append(pCh0Co1, (rezCh0Co1))
+    pCh0Co2 = np.append(pCh0Co2, (rezCh0Co2))
+
+    pCh32Cs = np.append(pCh32Cs, (rez32))
+    pCh32Co1 = np.append(pCh32Co1, (rezCh32Co1))
+    pCh32Co2 = np.append(pCh32Co2, (rezCh32Co2))
+
+    finalParameters = np.append(finalParameters, (pCh0Cs, pCh0Co1, pCh0Co2, pCh32Cs, pCh32Co1, pCh32Co2))
+    return finalParameters 
+
+
+def plotGraphs(infoFilesLocation, parameters): #Ploteaza mai multe grafice 
+  
+
+    infoFiles = [os.path.relpath(x) for x in os.scandir(infoFilesLocation)]
+    infoFiles = natsort.natsorted(infoFiles)
+    info = np.array([])
+    for i in range(len(infoFiles)):
+        with codecs.open(infoFiles[i], 'r', 'utf-8', errors='ignore') as file:
+            for i, line in enumerate(file):
+                line = line.strip()
+                infoL = line.split()
+                if(len(infoL) == 0):
+                 i = i+1
+                else:
+                    if infoL[0] == 'LG_ShapingTime':
+                        info = np.append(info, infoL[1])
+    
     c1 = TCanvas('graphs', 'Energy Rezsolution vs Shaping Time Ch0')
     mg1 = TMultiGraph("graphs", "Energy Resolution vs Shaping Time")
     c2 = TCanvas('graphs32', 'Energy Resolution vs Shaping Time Ch32')
@@ -512,13 +498,14 @@ def plotGraphs(parms1, parms2, parms3, parms4, parms5, parms6, parms7): #Ploteaz
     graph6.SetMarkerStyle(20)
     graph6.SetMarkerColor(kOrange)
 
-    for i in range(len(parms1)):
-        graph1.AddPoint(float(parms1[i]), float(parms2[i]))
-        graph2.AddPoint(float(parms1[i]), float(parms3[i]))
-        graph3.AddPoint(float(parms1[i]), float(parms4[i]))
-        graph4.AddPoint(float(parms1[i]), float(parms5[i]))
-        graph5.AddPoint(float(parms1[i]), float(parms6[i]))
-        graph6.AddPoint(float(parms1[i]), float(parms7[i]))
+    for i in range(len(info)):
+        graph1.AddPoint(float(info[i]), float(parameters[i][0]))
+        graph2.AddPoint(float(info[i]), float(parameters[i][1]))
+        graph3.AddPoint(float(info[i]), float(parameters[i][2]))
+        graph4.AddPoint(float(info[i]), float(parameters[i][3]))
+        graph5.AddPoint(float(info[i]), float(parameters[i][4]))
+        graph6.AddPoint(float(info[i]), float(parameters[i][5]))
+
     file = TFile('graphs.root', 'RECREATE')
     legend = TLegend(0.1,0.7,0.48,0.9)
     legend.SetHeader("Legend", "C")
@@ -542,21 +529,30 @@ def plotGraphs(parms1, parms2, parms3, parms4, parms5, parms6, parms7): #Ploteaz
     c1.Write()
     gPad.WaitPrimitive('ggg')
 
-# print(getInfo(config['infoFiles']))
+
 # plot(config['dataFiles'],config['infoFiles'])
-# print(getInfo(config['infoFiles']))
-# info = getInfo(config['infoFiles'])
-# parameters = uncalAnalysis(config['dataFiles'], config['infoFiles'])
-# plotGraphs(info, parameters[0], parameters[1])
+
+configfile = 'config.json'
+with open(configfile) as datafile:
+    config = json.load(datafile)
+
+infoFiles = [os.path.relpath(x) for x in os.scandir(config['infoFiles'])]
+infoFiles = natsort.natsorted(infoFiles)
+
+dataFiles = [os.path.relpath(x) for x in os.scandir(config['dataFiles'])]
+dataFiles = natsort.natsorted(dataFiles)
+parallelFiles = mergeLists(dataFiles, infoFiles)
+
+
+parallelFiles = [[parallelFile] for parallelFile in parallelFiles]
+print(parallelFiles)
 time_start = time.perf_counter()
-calParameters = histCalibration(config["dataFiles"], config["infoFiles"])
+
+with Pool() as pool:
+    parameters = pool.map(histCalibration, parallelFiles)
 end_time = time.perf_counter()
-print("program finished in {} seconds".format(end_time - time_start))
-# plotGraphs(info, calParameters[0], calParameters[1], calParameters[2], calParameters[3], 
-            # calParameters[4], calParameters[5])
-
- 
-
+plotGraphs(config["infoFiles"], parameters)
+print("Program finished in {} seconds".format(end_time - time_start))
 
 
 
